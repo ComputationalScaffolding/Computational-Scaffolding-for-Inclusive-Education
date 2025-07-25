@@ -1,4 +1,3 @@
-```python
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
@@ -13,8 +12,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 """
-Neuro-Adaptive Vygotsky Scaffolding Algorithm (NAVSA)
-=====================================================
+Neuro-Adaptive Vygotsky Scaffolding Algorithm (NAVSA) - Enhanced
+==============================================================
 
 A hybrid algorithm that combines:
 1. Recurrent Neural Networks with Temporal Attention to model learning patterns
@@ -22,12 +21,14 @@ A hybrid algorithm that combines:
 3. Neurological anomaly detection inspired by ASD research
 4. Multi-agent system for adaptive scaffolding
 5. Reinforcement Learning for continuous optimization of pedagogical strategies
+6. TASK ASSIGNMENT AND SELECTION LOGIC based on calculated ZPD
 
 Key Innovations:
 - Temporal modeling of cognition with differential attention
 - Adaptively resized ZPD based on neurological state
 - Early detection of cognitive overload
 - Personalized multi-modal scaffolding by neurocognitive profile
+- Real task assignment and difficulty progression logic
 """
 
 class ScaffoldingType(Enum):
@@ -38,6 +39,29 @@ class ScaffoldingType(Enum):
     SENSORY_ADJUSTMENT = "sensory_adjustment"
     SOCIAL_SUPPORT = "social_support"
     METACOGNITIVE_PROMPT = "metacognitive_prompt"
+
+class TaskType(Enum):
+    MATCHING = "matching"
+    SEQUENCING = "sequencing"
+    CLASSIFICATION = "classification"
+    PROBLEM_SOLVING = "problem_solving"
+    PATTERN_RECOGNITION = "pattern_recognition"
+    MEMORY_RECALL = "memory_recall"
+    SPATIAL_REASONING = "spatial_reasoning"
+    LANGUAGE_PROCESSING = "language_processing"
+
+@dataclass
+class Task:
+    """Represents a learning task with difficulty and characteristics"""
+    task_id: str
+    task_type: TaskType
+    difficulty_level: float  # 0.0 to 1.0
+    cognitive_demands: Dict[str, float]  # attention, memory, processing, etc.
+    estimated_duration: int  # in minutes
+    prerequisites: List[str]  # list of prerequisite skills
+    description: str
+    content: Dict  # task-specific content
+    adaptive_parameters: Dict[str, float]  # parameters for adaptation
 
 @dataclass
 class NeuroCognitiveProfile:
@@ -63,6 +87,243 @@ class LearningState:
     learning_momentum: float    # Rate of recent progress
     zpd_lower_bound: float      # ZPD lower bound
     zpd_upper_bound: float      # ZPD upper bound
+
+class TaskRepository:
+    """Repository of learning tasks with adaptive selection capabilities"""
+    
+    def __init__(self):
+        self.tasks = {}
+        self.task_history = {}  # student_id -> list of completed tasks
+        self.task_performance = {}  # task_id -> performance metrics
+        self._initialize_default_tasks()
+    
+    def _initialize_default_tasks(self):
+        """Initialize repository with sample tasks"""
+        # Sample tasks with varying difficulty levels
+        sample_tasks = [
+            Task(
+                task_id="match_basic_shapes",
+                task_type=TaskType.MATCHING,
+                difficulty_level=0.2,
+                cognitive_demands={
+                    "attention": 0.3,
+                    "working_memory": 0.2,
+                    "processing_speed": 0.3,
+                    "visual_processing": 0.7
+                },
+                estimated_duration=3,
+                prerequisites=[],
+                description="Match basic geometric shapes",
+                content={
+                    "shapes": ["circle", "square", "triangle"],
+                    "num_pairs": 3,
+                    "visual_complexity": "low"
+                },
+                adaptive_parameters={
+                    "time_limit": 60,
+                    "hint_availability": 1.0,
+                    "visual_complexity": 0.3
+                }
+            ),
+            Task(
+                task_id="sequence_numbers_basic",
+                task_type=TaskType.SEQUENCING,
+                difficulty_level=0.4,
+                cognitive_demands={
+                    "attention": 0.5,
+                    "working_memory": 0.6,
+                    "processing_speed": 0.4,
+                    "executive_function": 0.5
+                },
+                estimated_duration=5,
+                prerequisites=["match_basic_shapes"],
+                description="Arrange numbers in ascending order",
+                content={
+                    "sequence_length": 4,
+                    "number_range": (1, 10),
+                    "visual_aids": True
+                },
+                adaptive_parameters={
+                    "time_limit": 90,
+                    "hint_availability": 0.8,
+                    "sequence_complexity": 0.4
+                }
+            ),
+            Task(
+                task_id="pattern_recognition_intermediate",
+                task_type=TaskType.PATTERN_RECOGNITION,
+                difficulty_level=0.6,
+                cognitive_demands={
+                    "attention": 0.7,
+                    "working_memory": 0.6,
+                    "processing_speed": 0.5,
+                    "visual_processing": 0.8
+                },
+                estimated_duration=7,
+                prerequisites=["sequence_numbers_basic"],
+                description="Identify and continue visual patterns",
+                content={
+                    "pattern_complexity": "medium",
+                    "pattern_length": 6,
+                    "distractors": 2
+                },
+                adaptive_parameters={
+                    "time_limit": 120,
+                    "hint_availability": 0.6,
+                    "pattern_complexity": 0.6
+                }
+            ),
+            Task(
+                task_id="problem_solving_advanced",
+                task_type=TaskType.PROBLEM_SOLVING,
+                difficulty_level=0.8,
+                cognitive_demands={
+                    "attention": 0.8,
+                    "working_memory": 0.9,
+                    "processing_speed": 0.6,
+                    "executive_function": 0.9
+                },
+                estimated_duration=10,
+                prerequisites=["pattern_recognition_intermediate"],
+                description="Solve multi-step logical problems",
+                content={
+                    "problem_steps": 4,
+                    "logical_complexity": "high",
+                    "abstract_reasoning": True
+                },
+                adaptive_parameters={
+                    "time_limit": 180,
+                    "hint_availability": 0.4,
+                    "problem_complexity": 0.8
+                }
+            )
+        ]
+        
+        for task in sample_tasks:
+            self.tasks[task.task_id] = task
+    
+    def get_tasks_in_zpd(self, zpd_lower: float, zpd_upper: float, 
+                         completed_tasks: List[str] = None) -> List[Task]:
+        """Get tasks within the specified ZPD range"""
+        if completed_tasks is None:
+            completed_tasks = []
+        
+        suitable_tasks = []
+        for task in self.tasks.values():
+            if (zpd_lower <= task.difficulty_level <= zpd_upper and 
+                task.task_id not in completed_tasks):
+                # Check prerequisites
+                if all(prereq in completed_tasks for prereq in task.prerequisites):
+                    suitable_tasks.append(task)
+        
+        return sorted(suitable_tasks, key=lambda t: t.difficulty_level)
+    
+    def get_next_task_recommendation(self, current_skill: float, zpd_bounds: Tuple[float, float],
+                                   neuro_profile: NeuroCognitiveProfile,
+                                   learning_state: LearningState,
+                                   completed_tasks: List[str] = None) -> Optional[Task]:
+        """Recommend the next most suitable task"""
+        zpd_lower, zpd_upper = zpd_bounds
+        suitable_tasks = self.get_tasks_in_zpd(zpd_lower, zpd_upper, completed_tasks or [])
+        
+        if not suitable_tasks:
+            return None
+        
+        # Score tasks based on student profile and current state
+        task_scores = []
+        for task in suitable_tasks:
+            score = self._calculate_task_suitability_score(
+                task, neuro_profile, learning_state
+            )
+            task_scores.append((task, score))
+        
+        # Sort by score and return the best match
+        task_scores.sort(key=lambda x: x[1], reverse=True)
+        return task_scores[0][0] if task_scores else None
+    
+    def _calculate_task_suitability_score(self, task: Task, 
+                                        neuro_profile: NeuroCognitiveProfile,
+                                        learning_state: LearningState) -> float:
+        """Calculate how suitable a task is for the current student state"""
+        base_score = 1.0
+        
+        # Adjust based on cognitive demands vs. student capabilities
+        attention_match = 1.0 - abs(task.cognitive_demands.get("attention", 0.5) - neuro_profile.attention_span)
+        memory_match = 1.0 - abs(task.cognitive_demands.get("working_memory", 0.5) - neuro_profile.working_memory)
+        processing_match = 1.0 - abs(task.cognitive_demands.get("processing_speed", 0.5) - neuro_profile.processing_speed)
+        
+        cognitive_compatibility = (attention_match + memory_match + processing_match) / 3
+        
+        # Adjust based on current learning state
+        stress_penalty = learning_state.stress_level * 0.3  # High stress reduces suitability
+        engagement_bonus = learning_state.engagement_level * 0.2
+        cognitive_load_penalty = max(0, learning_state.cognitive_load - 0.7) * 0.4
+        
+        # Duration adjustment based on attention span
+        duration_factor = 1.0
+        if task.estimated_duration > neuro_profile.attention_span * 15:  # 15 minutes max attention
+            duration_factor = 0.7
+        
+        # Learning modality match
+        modality_bonus = 0.0
+        if neuro_profile.learning_modality == "visual" and task.task_type in [TaskType.MATCHING, TaskType.PATTERN_RECOGNITION]:
+            modality_bonus = 0.1
+        elif neuro_profile.learning_modality == "auditory" and task.task_type == TaskType.LANGUAGE_PROCESSING:
+            modality_bonus = 0.1
+        
+        final_score = (base_score * cognitive_compatibility * duration_factor + 
+                      engagement_bonus + modality_bonus - stress_penalty - cognitive_load_penalty)
+        
+        return max(0.0, min(final_score, 1.0))
+    
+    def adapt_task_difficulty(self, task: Task, target_difficulty: float,
+                            neuro_profile: NeuroCognitiveProfile) -> Task:
+        """Adapt task parameters to match target difficulty"""
+        adapted_task = Task(
+            task_id=f"{task.task_id}_adapted_{target_difficulty:.2f}",
+            task_type=task.task_type,
+            difficulty_level=target_difficulty,
+            cognitive_demands=task.cognitive_demands.copy(),
+            estimated_duration=task.estimated_duration,
+            prerequisites=task.prerequisites.copy(),
+            description=f"{task.description} (adapted)",
+            content=task.content.copy(),
+            adaptive_parameters=task.adaptive_parameters.copy()
+        )
+        
+        # Adjust task parameters based on target difficulty
+        difficulty_ratio = target_difficulty / task.difficulty_level if task.difficulty_level > 0 else 1.0
+        
+        # Adjust cognitive demands
+        for demand in adapted_task.cognitive_demands:
+            adapted_task.cognitive_demands[demand] *= difficulty_ratio
+            adapted_task.cognitive_demands[demand] = min(1.0, adapted_task.cognitive_demands[demand])
+        
+        # Adjust task-specific parameters
+        if task.task_type == TaskType.MATCHING:
+            adapted_task.content["num_pairs"] = max(2, int(adapted_task.content["num_pairs"] * difficulty_ratio))
+            adapted_task.adaptive_parameters["visual_complexity"] *= difficulty_ratio
+        
+        elif task.task_type == TaskType.SEQUENCING:
+            adapted_task.content["sequence_length"] = max(3, int(adapted_task.content["sequence_length"] * difficulty_ratio))
+            adapted_task.content["number_range"] = (
+                adapted_task.content["number_range"][0],
+                max(adapted_task.content["number_range"][1], int(adapted_task.content["number_range"][1] * difficulty_ratio))
+            )
+        
+        elif task.task_type == TaskType.PATTERN_RECOGNITION:
+            adapted_task.content["pattern_length"] = max(4, int(adapted_task.content["pattern_length"] * difficulty_ratio))
+            adapted_task.content["distractors"] = max(1, int(adapted_task.content["distractors"] * difficulty_ratio))
+        
+        # Adjust time limits and hints based on neurological profile
+        if neuro_profile.processing_speed < 0.5:
+            adapted_task.adaptive_parameters["time_limit"] *= 1.5
+        
+        if neuro_profile.attention_span < 0.4:
+            adapted_task.adaptive_parameters["hint_availability"] = min(1.0, 
+                adapted_task.adaptive_parameters["hint_availability"] * 1.3)
+        
+        return adapted_task
 
 class TemporalAttentionNetwork(nn.Module):
     """
@@ -98,6 +359,7 @@ class TemporalAttentionNetwork(nn.Module):
         self.engagement_predictor = nn.Linear(hidden_dim, 1)
         self.cognitive_load_predictor = nn.Linear(hidden_dim, 1)
         self.scaffolding_need_predictor = nn.Linear(hidden_dim, len(ScaffoldingType))
+        self.optimal_difficulty_predictor = nn.Linear(hidden_dim, 1)  # NEW: optimal task difficulty
 
         # Dropout for regularization
         self.dropout = nn.Dropout(0.1)
@@ -130,12 +392,14 @@ class TemporalAttentionNetwork(nn.Module):
         engagement = torch.sigmoid(self.engagement_predictor(final_state))
         cognitive_load = torch.sigmoid(self.cognitive_load_predictor(final_state))
         scaffolding_probs = torch.softmax(self.scaffolding_need_predictor(final_state), dim=1)
+        optimal_difficulty = torch.sigmoid(self.optimal_difficulty_predictor(final_state))
 
         return {
             'zpd_bounds': zpd_bounds,
             'engagement': engagement,
             'cognitive_load': cognitive_load,
             'scaffolding_probs': scaffolding_probs,
+            'optimal_difficulty': optimal_difficulty,  # NEW
             'hidden_state': final_state,
             'attention_weights': attention_weights
         }
@@ -290,13 +554,11 @@ class MultiModalScaffoldingAgent:
         scaffolding_scores = {}
 
         # Base scores from neural predictions
-        # Assume neural_predictions.get('scaffolding_probs') is a 1D array/tensor of probabilities
         neural_probs = np.array(neural_predictions.get('scaffolding_probs', np.ones(len(ScaffoldingType)) / len(ScaffoldingType)))
 
-        # Ensure neural_probs is flat if it came from a batch prediction (e.g., (1, N))
+        # Ensure neural_probs is flat if it came from a batch prediction
         if neural_probs.ndim > 1 and neural_probs.shape[0] == 1:
             neural_probs = neural_probs.flatten()
-
 
         for i, scaffolding_type in enumerate(ScaffoldingType):
             # Directly get the scalar probability for this scaffolding type
@@ -357,7 +619,7 @@ class MultiModalScaffoldingAgent:
 class NAVSACore:
     """
     Main core of the NAVSA algorithm
-    Integrates all components for adaptive scaffolding
+    Integrates all components for adaptive scaffolding and task assignment
     """
 
     def __init__(self, sequence_length=10):
@@ -366,13 +628,17 @@ class NAVSACore:
         self.anomaly_detector = NeuroAnomalyDetector()
         self.zpd_calculator = DynamicZPDCalculator()
         self.scaffolding_agent = MultiModalScaffoldingAgent()
+        self.task_repository = TaskRepository()  # NEW: Task repository
 
         # State history for temporal analysis
         self.state_history: List[LearningState] = []
         self.performance_history: List[float] = []
+        self.completed_tasks: List[str] = []  # NEW: Track completed tasks
+        self.current_task: Optional[Task] = None  # NEW: Current assigned task
 
         # Effectiveness metrics
         self.intervention_success_rate = {}
+        self.task_completion_rate = {}  # NEW: Track task completion rates
         self.adaptation_count = 0
 
     def update_student_state(self, neuro_profile: NeuroCognitiveProfile,
@@ -427,620 +693,3 @@ class NAVSACore:
 
         self.performance_history.append(current_skill)
         if len(self.performance_history) > 20:  # Keep last 20
-            self.performance_history.pop(0)
-
-        return new_state
-
-    def _calculate_cognitive_load(self, measurements: Dict,
-                                 profile: NeuroCognitiveProfile) -> float:
-        """Calculates cognitive load based on multiple indicators"""
-        # Base factors
-        task_complexity = measurements.get('task_complexity', 0.5)
-        response_time = measurements.get('response_time', 1.0)
-        error_rate = measurements.get('error_rate', 0.1)
-
-        # Normalize response time based on profile
-        expected_time = 1.0 / max(profile.processing_speed, 0.1)
-        time_pressure = min(response_time / expected_time, 2.0)
-
-        # Calculate load
-        cognitive_load = (
-            0.4 * task_complexity +
-            0.3 * min(time_pressure, 1.0) +
-            0.3 * min(error_rate * 10, 1.0)
-        )
-
-        return min(cognitive_load, 1.0)
-
-    def _calculate_attention_focus(self, measurements: Dict,
-                                  profile: NeuroCognitiveProfile) -> float:
-        """Calculates attention focus level"""
-        # Attention indicators
-        gaze_consistency = measurements.get('gaze_consistency', 0.5)
-        task_switching = measurements.get('task_switching_frequency', 0.3)
-        response_consistency = measurements.get('response_consistency', 0.7)
-
-        # Adjust by profile
-        baseline_attention = profile.attention_span
-
-        attention_focus = baseline_attention * (
-            0.4 * gaze_consistency +
-            0.3 * (1 - task_switching) +  # Less switching = more focus
-            0.3 * response_consistency
-        )
-
-        return min(attention_focus, 1.0)
-
-    def _estimate_emotional_state(self, engagement: float,
-                                 stress: float, measurements: Dict) -> float:
-        """Estimates general emotional state"""
-        # Use engagement and stress as base
-        # Positive emotional state = high engagement, low stress
-        frustration_indicators = measurements.get('frustration_signs', 0.0)
-        satisfaction_indicators = measurements.get('satisfaction_signs', 0.0)
-
-        emotional_state = (
-            0.4 * engagement +
-            0.3 * (1 - stress) +
-            0.2 * satisfaction_indicators +
-            0.1 * (1 - frustration_indicators)
-        )
-
-        return min(max(emotional_state, 0.0), 1.0)
-
-    def _calculate_learning_momentum(self) -> float:
-        """Calculates learning momentum based on recent history"""
-        if len(self.performance_history) < 3:
-            return 0.5
-
-        # Calculate recent trend (last 5 points)
-        recent_performance = self.performance_history[-5:]
-        if len(recent_performance) < 2:
-            return 0.5
-
-        # Simple linear regression for trend
-        x = np.arange(len(recent_performance))
-        y = np.array(recent_performance)
-
-        if np.std(x) > 0:
-            slope = np.corrcoef(x, y)[0, 1] * np.std(y) / np.std(x)
-            # Normalize slope to [0, 1]
-            momentum = 0.5 + np.tanh(slope * 10) * 0.5
-        else:
-            momentum = 0.5
-
-        return min(max(momentum, 0.0), 1.0)
-
-    def get_adaptive_scaffolding(self, neuro_profile: NeuroCognitiveProfile,
-                                 current_state: LearningState) -> Dict:
-        """
-        Generates adaptive scaffolding recommendations
-        """
-        # Prepare data for neural network
-        input_features = self._prepare_neural_input(neuro_profile, current_state)
-
-        # Get predictions from the neural network
-        with torch.no_grad():
-            neural_predictions = self.temporal_network(input_features)
-
-        # Detect neurological anomalies
-        neuro_signal = self._extract_neuro_signal(current_state)
-        is_anomaly, anomaly_score = self.anomaly_detector.detect_anomaly(neuro_signal)
-
-        # Select appropriate scaffolding
-        scaffolding_recommendations = self.scaffolding_agent.select_scaffolding(
-            neuro_profile, current_state,
-            {k: v.numpy() if hasattr(v, 'numpy') else v
-             for k, v in neural_predictions.items()}
-        )
-
-        # Determine intervention intensity
-        intervention_intensity = self._calculate_intervention_intensity(
-            current_state, is_anomaly, anomaly_score)
-
-        # Generate contextual recommendations
-        contextual_recommendations = self._generate_contextual_recommendations(
-            neuro_profile, current_state, scaffolding_recommendations)
-
-        return {
-            'primary_scaffolding': scaffolding_recommendations[0] if scaffolding_recommendations else (ScaffoldingType.VISUAL_PROMPT, 0.5),
-            'alternative_scaffolding': scaffolding_recommendations[1:] if len(scaffolding_recommendations) > 1 else [],
-            'intervention_intensity': intervention_intensity,
-            'anomaly_detected': is_anomaly,
-            'anomaly_severity': abs(anomaly_score),
-            'predicted_engagement': float(neural_predictions['engagement']),
-            'predicted_cognitive_load': float(neural_predictions['cognitive_load']),
-            'zpd_bounds': (current_state.zpd_lower_bound, current_state.zpd_upper_bound),
-            'contextual_recommendations': contextual_recommendations,
-            'confidence_score': self._calculate_confidence_score(neural_predictions)
-        }
-
-    def _prepare_neural_input(self, profile: NeuroCognitiveProfile,
-                               state: LearningState) -> torch.Tensor:
-        """Prepares input for the neural network"""
-        # Combine profile features and current state
-        features = [
-            profile.sensory_sensitivity,
-            profile.attention_span,
-            profile.social_preference,
-            profile.processing_speed,
-            profile.working_memory,
-            profile.executive_function,
-            state.current_skill_level,
-            state.engagement_level,
-            state.stress_level,
-            state.cognitive_load,
-            state.attention_focus,
-            state.emotional_state
-        ]
-
-        # Create temporal sequence if history exists
-        if len(self.state_history) >= 2:
-            sequence_data = []
-            for i in range(max(0, len(self.state_history) - self.sequence_length),
-                           len(self.state_history)):
-                hist_state = self.state_history[i]
-                hist_features = [
-                    profile.sensory_sensitivity,
-                    profile.attention_span,
-                    profile.social_preference,
-                    profile.processing_speed,
-                    profile.working_memory,
-                    profile.executive_function,
-                    hist_state.current_skill_level,
-                    hist_state.engagement_level,
-                    hist_state.stress_level,
-                    hist_state.cognitive_load,
-                    hist_state.attention_focus,
-                    hist_state.emotional_state
-                ]
-                sequence_data.append(hist_features)
-
-            # Pad sequence if necessary
-            while len(sequence_data) < self.sequence_length:
-                sequence_data.insert(0, features)  # Repeat first state
-
-            tensor_input = torch.tensor(sequence_data, dtype=torch.float32).unsqueeze(0)
-        else:
-            # If not enough history, repeat current state
-            sequence_data = [features] * self.sequence_length
-            tensor_input = torch.tensor(sequence_data, dtype=torch.float32).unsqueeze(0)
-
-
-        return tensor_input
-
-
-    def _extract_neuro_signal(self, state: LearningState) -> np.ndarray:
-        """Extracts neurological signal for anomaly detection"""
-        signal = np.array([
-            state.engagement_level,
-            state.stress_level,
-            state.cognitive_load,
-            state.attention_focus,
-            state.emotional_state,
-            state.learning_momentum
-        ])
-        return signal
-
-    def _calculate_intervention_intensity(self, state: LearningState,
-                                          is_anomaly: bool,
-                                          anomaly_score: float) -> float:
-        """Calculates required intervention intensity"""
-        base_intensity = 0.5
-
-        # Increase intensity if anomaly detected
-        if is_anomaly:
-            base_intensity += 0.3 * min(abs(anomaly_score), 1.0)
-
-        # Adjust based on state
-        if state.stress_level > 0.7:
-            base_intensity += 0.2
-        if state.engagement_level < 0.3:
-            base_intensity += 0.2
-        if state.cognitive_load > 0.8:
-            base_intensity += 0.1
-
-        return min(base_intensity, 1.0)
-
-    def _generate_contextual_recommendations(self, profile: NeuroCognitiveProfile,
-                                             state: LearningState,
-                                             scaffolding_list: List) -> List[str]:
-        """Generates specific contextual recommendations"""
-        recommendations = []
-
-        if not scaffolding_list:
-            return recommendations
-
-        primary_scaffolding = scaffolding_list[0][0]
-
-        # Specific recommendations based on scaffolding type
-        if primary_scaffolding == ScaffoldingType.VISUAL_PROMPT:
-            if profile.sensory_sensitivity > 0.7:
-                recommendations.append("Use soft colors and reduced contrast")
-            recommendations.append("Visually highlight key elements")
-            recommendations.append("Use familiar and consistent icons")
-
-        elif primary_scaffolding == ScaffoldingType.COGNITIVE_BREAK:
-            recommendations.append("2-3 minute break recommended")
-            if profile.sensory_sensitivity > 0.6:
-                recommendations.append("Environment with fewer sensory stimuli")
-            recommendations.append("Relaxing activity or physical movement")
-
-        elif primary_scaffolding == ScaffoldingType.SENSORY_ADJUSTMENT:
-            if profile.sensory_sensitivity > 0.7:
-                recommendations.append("Check/adjust lighting and noise")
-            if profile.learning_modality == 'kinesthetic':
-                recommendations.append("Include movement or tactile objects")
-
-
-        elif primary_scaffolding == ScaffoldingType.SOCIAL_SUPPORT:
-            if profile.social_preference > 0.6:
-                recommendations.append("Facilitate interaction with a peer helper")
-            recommendations.append("Offer positive verbal encouragement")
-
-        elif primary_scaffolding == ScaffoldingType.METACOGNITIVE_PROMPT:
-            if profile.executive_function < 0.5:
-                recommendations.append("Suggest step-by-step planning strategies")
-            recommendations.append("Ask the student to verbalize their reasoning")
-
-        elif primary_scaffolding == ScaffoldingType.VERBAL_HINT:
-            if profile.communication_style != 'non_verbal':
-                recommendations.append("Use clear and concise language")
-            recommendations.append("Offer a short verbal example")
-
-        elif primary_scaffolding == ScaffoldingType.GESTURE_CUE:
-            if profile.learning_modality == 'kinesthetic' or profile.attention_span < 0.5:
-                recommendations.append("Use a simple gesture to indicate the next step")
-            recommendations.append("Combine with a visual prompt, if possible")
-
-
-        # Recommendations based on current state
-        if state.stress_level > 0.7:
-            recommendations.append("Reduce task complexity")
-            recommendations.append("Offer an immediate break")
-
-        if state.engagement_level < 0.4:
-            recommendations.append("Introduce a new stimulus or activity")
-            recommendations.append("Reconnect with the student (check-in)")
-
-        if state.cognitive_load > 0.8:
-            recommendations.append("Simplify instructions")
-            recommendations.append("Break down the task into smaller parts")
-
-
-        return list(set(recommendations)) # Remove duplicates
-
-
-    def _calculate_confidence_score(self, neural_predictions: Dict) -> float:
-        """Calculates a confidence score for neural network predictions"""
-        # Use entropy of scaffolding probabilities as an inverse indicator of confidence
-        scaffolding_probs = neural_predictions.get('scaffolding_probs')
-        if scaffolding_probs is None:
-            return 0.5 # Default value
-
-        # Avoid log(0)
-        scaffolding_probs = torch.clamp(scaffolding_probs, 1e-9, 1.0 - 1e-9)
-
-        # Calculate entropy
-        entropy = -torch.sum(scaffolding_probs * torch.log(scaffolding_probs), dim=1)
-
-        # Normalize entropy (higher entropy = lower confidence)
-        max_entropy = np.log(len(ScaffoldingType))
-        normalized_entropy = entropy / max_entropy
-
-        # Confidence is the inverse of the normalized entropy
-        confidence = 1.0 - normalized_entropy.mean().item()
-
-        # Adjust based on other predictions (less uncertainty in engagement/load = more confidence)
-        if 'engagement' in neural_predictions and 'cognitive_load' in neural_predictions:
-            # Ensure these are tensors before stacking
-            engagement_tensor = neural_predictions['engagement'] if torch.is_tensor(neural_predictions['engagement']) else torch.tensor(neural_predictions['engagement'])
-            cognitive_load_tensor = neural_predictions['cognitive_load'] if torch.is_tensor(neural_predictions['cognitive_load']) else torch.tensor(neural_predictions['cognitive_load'])
-
-            # Ensure they have the same shape for stacking
-            if engagement_tensor.shape != cognitive_load_tensor.shape:
-                # Handle shape mismatch, e.g., unsqueeze if one is scalar and the other isn't
-                if engagement_tensor.ndim == 0:
-                    engagement_tensor = engagement_tensor.unsqueeze(0)
-                if cognitive_load_tensor.ndim == 0:
-                    cognitive_load_tensor = cognitive_load_tensor.unsqueeze(0)
-                # If still different shapes, might need more complex handling or skip this adjustment
-                if engagement_tensor.shape != cognitive_load_tensor.shape:
-                    print("Warning: Shape mismatch in engagement and cognitive_load tensors for confidence calculation.")
-                    pred_std = 0.0 # Skip adjustment
-
-                else:
-                    pred_std = torch.std(torch.stack([engagement_tensor,
-                                                      cognitive_load_tensor]), dim=0).mean().item()
-            else:
-                pred_std = torch.std(torch.stack([engagement_tensor,
-                                                  cognitive_load_tensor]), dim=0).mean().item()
-
-
-            # Assuming lower std in predictions is good
-            confidence = confidence * (1.0 - min(pred_std * 2.0, 0.5)) # Penalize for high uncertainty
-
-
-        return max(0.0, min(confidence, 1.0)) # Ensure the score is between 0 and 1
-
-
-    def train_temporal_network(self, training_data: List[Tuple[np.ndarray, Dict]],
-                               epochs=10, batch_size=32, learning_rate=1e-4):
-        """
-        Trains the temporal neural network with historical data
-        training_data: List of (historical_sequence, target_predictions)
-        """
-        if not training_data:
-            print("No training data provided.")
-            return
-
-        optimizer = torch.optim.Adam(self.temporal_network.parameters(), lr=learning_rate)
-        criterion = nn.CrossEntropyLoss() # For scaffolding probabilities
-        mse_criterion = nn.MSELoss()      # For continuous predictions (engagement, load, ZPD)
-
-        self.temporal_network.train()
-
-        # Prepare targets for training
-        processed_targets = {}
-        for k in training_data[0][1].keys():
-            if k == 'scaffolding_probs':
-                # Convert one-hot to class index
-                processed_targets[k] = torch.stack([torch.argmax(torch.tensor(b[1][k], dtype=torch.float32)) for b in training_data])
-            else:
-                processed_targets[k] = torch.stack([torch.tensor(b[1][k], dtype=torch.float32) for b in training_data])
-
-
-        for epoch in range(epochs):
-            # Shuffle data and targets in unison
-            indices = list(range(len(training_data)))
-            np.random.shuffle(indices)
-
-            shuffled_inputs = [training_data[i][0] for i in indices]
-            shuffled_targets = {k: processed_targets[k][indices] for k in processed_targets.keys()}
-
-
-            total_loss = 0
-
-            for i in range(0, len(shuffled_inputs), batch_size):
-                batch_inputs = torch.stack([torch.tensor(seq, dtype=torch.float32) for seq in shuffled_inputs[i:i+batch_size]])
-                batch_targets = {k: shuffled_targets[k][i:i+batch_size] for k in shuffled_targets.keys()}
-
-
-                optimizer.zero_grad()
-
-                predictions = self.temporal_network(batch_inputs)
-
-                # Ensure prediction shapes match target shapes
-                pred_engagement = predictions['engagement'].squeeze(-1) if predictions['engagement'].ndim > 1 else predictions['engagement']
-                pred_cognitive_load = predictions['cognitive_load'].squeeze(-1) if predictions['cognitive_load'].ndim > 1 else predictions['cognitive_load']
-                pred_zpd_bounds = predictions['zpd_bounds']
-                pred_scaffolding_probs = predictions['scaffolding_probs']
-
-                target_engagement = batch_targets['engagement']
-                target_cognitive_load = batch_targets['cognitive_load']
-                target_zpd_bounds = batch_targets['zpd_bounds']
-                target_scaffolding_classes = batch_targets['scaffolding_probs']
-
-
-                loss = criterion(pred_scaffolding_probs, target_scaffolding_classes) + \
-                       mse_criterion(pred_engagement, target_engagement) + \
-                       mse_criterion(pred_cognitive_load, target_cognitive_load) + \
-                       mse_criterion(pred_zpd_bounds, target_zpd_bounds)
-
-
-                loss.backward()
-                optimizer.step()
-
-                total_loss += loss.item()
-
-            print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss / (len(training_data) / batch_size):.4f}")
-
-        self.temporal_network.eval()
-        print("Temporal Network Training Complete.")
-
-
-    def train_anomaly_detector(self, neuro_history: np.ndarray):
-        """Trains the anomaly detector with historical neurophysiological signal data"""
-        if len(neuro_history) > 0:
-            self.anomaly_detector.fit(neuro_history)
-            print("Anomaly Detector Training Complete.")
-        else:
-            print("No historical neuro data for anomaly detection training.")
-
-    def evaluate_intervention(self, implemented_scaffolding: ScaffoldingType,
-                              task_performance: float,
-                              post_intervention_state: LearningState):
-        """
-        Evaluates the effectiveness of a scaffolding intervention
-        (Simulated for example purposes, a real system would use actual data)
-        """
-        # Simple evaluation example:
-        # If performance improved and stress/cognitive load decreased, it was effective
-
-        # Retrieve previous state (assuming the last state in history is pre-intervention)
-        if len(self.state_history) >= 2:
-            prev_state = self.state_history[-2]
-            stress_change = post_intervention_state.stress_level - prev_state.stress_level
-            cognitive_load_change = post_intervention_state.cognitive_load - prev_state.cognitive_load
-
-            # Performance increase and stress/load reduction = success
-            is_successful = task_performance > (prev_state.current_skill_level * 0.9) and \
-                            stress_change < -0.1 and \
-                            cognitive_load_change < -0.1
-
-            self.intervention_success_rate[implemented_scaffolding] = \
-                self.intervention_success_rate.get(implemented_scaffolding, []) + [is_successful]
-
-            self.adaptation_count += 1
-
-        else:
-            print("Not enough history to evaluate intervention.")
-
-
-    def get_scaffolding_effectiveness_report(self) -> Dict:
-        """Generates a report on the effectiveness of evaluated interventions"""
-        report = {}
-        for scaff_type, successes in self.intervention_success_rate.items():
-            if successes:
-                success_rate = sum(successes) / len(successes)
-                report[scaff_type.value] = f"{success_rate:.2%}"
-            else:
-                report[scaff_type.value] = "N/A"
-        return report
-
-# --- RUNNING A SIMULATED CYCLE ---
-
-# Create an example student profile
-example_profile = NeuroCognitiveProfile(
-    sensory_sensitivity=0.8,    # High sensitivity
-    attention_span=0.3,         # Low attention span
-    social_preference=0.2,      # Low social preference
-    processing_speed=0.6,
-    working_memory=0.5,
-    executive_function=0.4,
-    communication_style="verbal",
-    learning_modality="visual"
-)
-
-# Initialize the NAVSA core
-navsa = NAVSACore(sequence_length=5) # Use a shorter history for the example
-
-# Generate some simulated historical data for initial training (for demonstration only)
-# In a real system, this would come from the database of previous sessions
-simulated_history_states = []
-simulated_neuro_signals = []
-simulated_training_data = []
-
-# Create simulated historical states
-initial_skill = 0.4
-for i in range(15): # 15 simulated historical sessions
-    skill = initial_skill + i * 0.03 + np.random.normal(0, 0.05)
-    eng = min(1.0, max(0.0, 0.6 + np.random.normal(0, 0.1)))
-    stress = min(1.0, max(0.0, 0.3 + np.random.normal(0, 0.05)))
-    load = min(1.0, max(0.0, 0.4 + np.random.normal(0, 0.1)))
-    attention = min(1.0, max(0.0, 0.5 + np.random.normal(0, 0.1)))
-    emotion = min(1.0, max(0.0, 0.7 + np.random.normal(0, 0.1)))
-    momentum = np.random.rand()
-    zpd_l = max(0.0, skill - 0.1)
-    zpd_u = min(1.0, skill + 0.2)
-
-
-    state = LearningState(
-        current_skill_level=skill,
-        engagement_level=eng,
-        stress_level=stress,
-        cognitive_load=load,
-        attention_focus=attention,
-        emotional_state=emotion,
-        learning_momentum=momentum,
-        zpd_lower_bound=zpd_l,
-        zpd_upper_bound=zpd_u
-    )
-    simulated_history_states.append(state)
-    simulated_neuro_signals.append(navsa._extract_neuro_signal(state))
-
-    # Create data for temporal network training
-    if i >= navsa.sequence_length -1:
-        history_slice = simulated_history_states[i-navsa.sequence_length+1 : i+1]
-        input_seq = torch.stack([torch.tensor([
-            example_profile.sensory_sensitivity,
-            example_profile.attention_span,
-            example_profile.social_preference,
-            example_profile.processing_speed,
-            example_profile.working_memory,
-            example_profile.executive_function,
-            s.current_skill_level,
-            s.engagement_level,
-            s.stress_level,
-            s.cognitive_load,
-            s.attention_focus,
-            s.emotional_state
-        ], dtype=torch.float32) for s in history_slice])
-
-        # Target predictions (simulated) - next state predictions or desired states
-        # For this simulation, let's predict the next engagement, load, ZPD, and a random scaffolding need
-        target_engagement = min(1.0, max(0.0, eng + np.random.normal(0, 0.05)))
-        target_load = min(1.0, max(0.0, load + np.random.normal(0, 0.05)))
-        target_zpd = torch.tensor([max(0.0, skill + np.random.normal(-0.05, 0.03)),
-                                     min(1.0, skill + np.random.normal(0.15, 0.03))], dtype=torch.float32)
-        target_scaffolding_probs = F.one_hot(torch.tensor(np.random.randint(0, len(ScaffoldingType))),
-                                             num_classes=len(ScaffoldingType)).float()
-
-
-        target_dict = {
-            'engagement': target_engagement,
-            'cognitive_load': target_load,
-            'zpd_bounds': target_zpd,
-            'scaffolding_probs': target_scaffolding_probs
-        }
-        simulated_training_data.append((input_seq.squeeze(0).numpy(), target_dict)) # Remove batch dim
-
-
-# Train components (simulated)
-print("Starting simulated training of components...")
-navsa.train_temporal_network(simulated_training_data, epochs=5)
-navsa.train_anomaly_detector(np.array(simulated_neuro_signals))
-print("Simulated training complete.")
-
-# Simulate a new data point (current measurements)
-current_measurements = {
-    'skill_level': simulated_history_states[-1].current_skill_level + 0.02, # Small progress
-    'engagement': 0.5,
-    'stress': 0.6, # Stress increasing
-    'task_complexity': 0.7,
-    'response_time': 1.2, # Slow
-    'error_rate': 0.2,
-    'gaze_consistency': 0.4, # Low focus
-    'task_switching_frequency': 0.5, # High
-    'response_consistency': 0.6,
-    'frustration_signs': 0.4,
-    'satisfaction_signs': 0.3,
-}
-
-# Update student state and get recommendations
-print("\nUpdating student state and generating recommendations...")
-current_state = navsa.update_student_state(example_profile, current_measurements)
-
-recommendations = navsa.get_adaptive_scaffolding(example_profile, current_state)
-
-print("\n--- Scaffolding Recommendations ---")
-print(f"Current State: Skill={current_state.current_skill_level:.2f}, Engagement={current_state.engagement_level:.2f}, Stress={current_state.stress_level:.2f}, Cognitive Load={current_state.cognitive_load:.2f}")
-print(f"Calculated ZPD: ({current_state.zpd_lower_bound:.2f}, {current_state.zpd_upper_bound:.2f})")
-print(f"Predicted Engagement: {recommendations['predicted_engagement']:.2f}, Predicted Cognitive Load: {recommendations['predicted_cognitive_load']:.2f}")
-print(f"Anomaly Detected: {recommendations['anomaly_detected']} (Severity: {recommendations['anomaly_severity']:.2f})")
-print(f"Intervention Intensity: {recommendations['intervention_intensity']:.2f}")
-print(f"Prediction Confidence: {recommendations['confidence_score']:.2f}")
-print("Primary Scaffolding Recommended:", recommendations['primary_scaffolding'])
-print("Suggested Alternative Scaffolding:", recommendations['alternative_scaffolding'])
-print("Specific Contextual Recommendations:")
-for rec in recommendations['contextual_recommendations']:
-    print(f"- {rec}")
-
-# Simulate post-intervention feedback and evaluate
-print("\nSimulating post-intervention feedback...")
-# Simulate an improvement in performance and state after the intervention
-post_intervention_measurements = {
-    'skill_level': current_state.current_skill_level + 0.05, # Significant progress
-    'engagement': 0.8, # Increased
-    'stress': 0.3,     # Decreased
-    'task_complexity': 0.5, # Task adjusted
-    'response_time': 0.8, # Faster
-    'error_rate': 0.1,
-    'gaze_consistency': 0.7, # Focus improved
-    'task_switching_frequency': 0.2,
-    'response_consistency': 0.8,
-    'frustration_signs': 0.1,
-    'satisfaction_signs': 0.7,
-}
-
-post_intervention_state = navsa.update_student_state(example_profile, post_intervention_measurements)
-navsa.evaluate_intervention(recommendations['primary_scaffolding'][0],
-                            post_intervention_measurements['skill_level'],
-                            post_intervention_state)
-
-print("\n--- Scaffolding Effectiveness Report ---")
-print(navsa.get_scaffolding_effectiveness_report())
-print(f"Total adaptations recorded: {navsa.adaptation_count}")
-
-print("\nSimulated cycle complete.")
-```
